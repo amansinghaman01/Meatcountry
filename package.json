@@ -4,7 +4,7 @@
   "private": true,
   "description": "FreshCart Market commerce demo with delivery operations, refunds, inventory, customer features and Razorpay test checkout",
   "engines": {
-    "node": ">=20"
+    "node": "24.x"
   },
   "dependencies": {
     "bcryptjs": "2.4.3",
