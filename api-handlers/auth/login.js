@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { getDb } = require('../../lib/db');
-const { setSession } = require('../../lib/auth');
+const { setSession, getSecret } = require('../../lib/auth');
 const { sendJson, methodNotAllowed, readBody, errorResponse, assertSameOrigin } = require('../../lib/http');
 
 module.exports = async function handler(req, res) {
@@ -11,6 +11,10 @@ module.exports = async function handler(req, res) {
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password) return sendJson(res, 400, { error: 'Enter your email and password.' });
+
+    // Detect an invalid/missing JWT secret before reading credentials or issuing cookies.
+    getSecret();
+
     const db = await getDb();
     const user = await db.collection('users').findOne({ email });
     // Use a dummy hash comparison for unknown emails to reduce timing differences.
