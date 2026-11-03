@@ -27,7 +27,12 @@ module.exports = async function handler(req,res) {
       return sendJson(res,409,{error:'Razorpay has not confirmed a captured payment for this exact order amount.'});
     }
     const now=new Date();
-    await db.collection('orders').updateOne({_id:order._id,paymentStatus:{$ne:'paid'}},{$set:{paymentStatus:'paid',razorpayPaymentId:paymentId,status:'confirmed',updatedAt:now},$push:{statusHistory:{status:'confirmed',at:now,note:'Payment verified successfully'}}});
+    const updated = await db.collection('orders').updateOne({_id:order._id,paymentStatus:{$ne:'paid'},status:{$nin:['cancelled','payment_failed']}},{$set:{paymentStatus:'paid',razorpayPaymentId:paymentId,status:'confirmed',updatedAt:now},$push:{statusHistory:{status:'confirmed',at:now,note:'Payment verified successfully'}}});
+    if (!updated.modifiedCount) {
+      const latest = await db.collection('orders').findOne({_id:order._id},{projection:{paymentStatus:1,status:1,orderNumber:1}});
+      if (latest?.paymentStatus === 'paid') return sendJson(res,200,{ok:true,orderNumber:latest.orderNumber,status:latest.status});
+      return sendJson(res,409,{error:'This order changed while payment was being verified. Contact support before retrying.'});
+    }
     await db.collection('notifications').insertOne({userId:new ObjectId(session.sub),orderId:order._id,type:'payment',message:`Payment received for ${order.orderNumber}.`,createdAt:now,read:false});
     return sendJson(res,200,{ok:true,orderNumber:order.orderNumber,status:'confirmed'});
   } catch(error) { return errorResponse(res,error); }
