@@ -47,8 +47,11 @@ module.exports = async function handler(req,res) {
     if(event.event==='payment.captured' || event.event==='order.paid') {
       if(Number(entity.amount)!==Number(order.total)*100 || entity.currency!=='INR') return sendJson(res,400,{error:'Payment amount or currency does not match the order.'});
       const now=new Date();
-      await orders.updateOne({_id:order._id,paymentStatus:{$ne:'paid'},status:{$nin:['cancelled','payment_failed']}},{$set:{paymentStatus:'paid',razorpayPaymentId:entity.id,status:'confirmed',updatedAt:now},$push:{statusHistory:{status:'confirmed',at:now,note:'Razorpay payment confirmed by webhook'}}});
-      await db.collection('notifications').insertOne({userId:order.userId,orderId:order._id,type:'payment',message:`Payment received for ${order.orderNumber}.`,createdAt:now,read:false});
+      const updated=await orders.updateOne({_id:order._id,paymentStatus:{$ne:'paid'},status:{$nin:['cancelled','payment_failed']}},{$set:{paymentStatus:'paid',razorpayPaymentId:entity.id,status:'confirmed',updatedAt:now},$push:{statusHistory:{status:'confirmed',at:now,note:'Razorpay payment confirmed by webhook'}}});
+      // Only the webhook that transitions the order to paid should create the notification.
+      if(updated.modifiedCount) {
+        await db.collection('notifications').insertOne({userId:order.userId,orderId:order._id,type:'payment',message:`Payment received for ${order.orderNumber}.`,createdAt:now,read:false});
+      }
     } else if(event.event==='payment.failed') {
       const updated=await orders.updateOne({_id:order._id,paymentStatus:{$ne:'paid'},status:{$ne:'payment_failed'}},{$set:{paymentStatus:'failed',status:'payment_failed',updatedAt:new Date()},$push:{statusHistory:{status:'payment_failed',at:new Date(),note:'Razorpay payment failed'}}});
       if(updated.modifiedCount) {
