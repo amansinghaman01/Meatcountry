@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { getDb } = require('../../lib/db');
-const { setSession } = require('../../lib/auth');
+const { setSession, getSecret } = require('../../lib/auth');
 const { sendJson, methodNotAllowed, readBody, errorResponse, assertSameOrigin } = require('../../lib/http');
 
 module.exports = async function handler(req, res) {
@@ -14,6 +14,11 @@ module.exports = async function handler(req, res) {
     if (name.length < 2 || name.length > 80) return sendJson(res, 400, { error: 'Enter your name (2–80 characters).' });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return sendJson(res, 400, { error: 'Enter a valid email address.' });
     if (password.length < 10 || password.length > 128) return sendJson(res, 400, { error: 'Password must be 10–128 characters.' });
+
+    // Fail before writing the user record; otherwise a missing JWT secret can
+    // create an account while the browser receives a failed signup response.
+    getSecret();
+
     const db = await getDb();
     const referralCode = String(body.referralCode || '').trim().toUpperCase();
     let referrer = null;
